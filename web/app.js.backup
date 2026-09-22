@@ -1,0 +1,1060 @@
+/* ============================================================
+   ELEMENTS
+============================================================ */
+
+const chatForm =
+    document.getElementById("chatForm");
+
+const chatInput =
+    document.getElementById("chatInput");
+
+const sendButton =
+    document.getElementById("sendButton");
+
+const chatMessages =
+    document.getElementById("chatMessages");
+
+const mealList =
+    document.getElementById("mealList");
+
+const traceList =
+    document.getElementById("traceList");
+
+const budgetValue =
+    document.getElementById("budgetValue");
+
+const consumedValue =
+    document.getElementById("consumedValue");
+
+const remainingValue =
+    document.getElementById("remainingValue");
+
+const progressBar =
+    document.getElementById("progressBar");
+
+const mealCount =
+    document.getElementById("mealCount");
+
+const manualMealButton =
+    document.getElementById("manualMealButton");
+
+const resetButton =
+    document.getElementById("resetButton");
+
+
+/* ============================================================
+   SESSION
+============================================================ */
+
+let sessionId =
+    localStorage.getItem(
+        "meal_helper_session"
+    );
+
+
+if (!sessionId) {
+
+    sessionId =
+        crypto.randomUUID();
+
+    localStorage.setItem(
+        "meal_helper_session",
+        sessionId
+    );
+
+}
+
+
+/* ============================================================
+   HTML SAFETY
+============================================================ */
+
+function escapeHtml(value) {
+
+    return String(value)
+
+        .replaceAll(
+            "&",
+            "&"
+        )
+
+        .replaceAll(
+            "<",
+            "<"
+        )
+
+        .replaceAll(
+            ">",
+            ">"
+        )
+
+        .replaceAll(
+            '"',
+            """
+        )
+
+        .replaceAll(
+            "'",
+            "&#039;"
+        );
+
+}
+
+
+/* ============================================================
+   TEXT FORMATTER
+============================================================ */
+
+function formatText(text) {
+
+    let safe =
+        escapeHtml(text);
+
+
+    safe =
+        safe.replace(
+            /\*\*(.*?)\*\*/g,
+            "<strong>$1</strong>"
+        );
+
+
+    safe =
+        safe.replace(
+            /^### (.*)$/gm,
+            "<strong>$1</strong>"
+        );
+
+
+    safe =
+        safe.replace(
+            /^## (.*)$/gm,
+            "<strong>$1</strong>"
+        );
+
+
+    safe =
+        safe.replace(
+            /\n/g,
+            "<br>"
+        );
+
+
+    return safe;
+
+}
+
+
+/* ============================================================
+   ADD CHAT MESSAGE
+============================================================ */
+
+function addMessage(
+    role,
+    text
+) {
+
+    const element =
+        document.createElement(
+            "div"
+        );
+
+
+    element.className =
+        role === "user"
+            ? "message user-message"
+            : "message agent-message";
+
+
+    const avatar =
+        role === "user"
+            ? "YOU"
+            : "AI";
+
+
+    const timestamp =
+        new Date().toLocaleTimeString(
+            [],
+            {
+                hour: "2-digit",
+                minute: "2-digit"
+            }
+        );
+
+
+    element.innerHTML = `
+
+        <div class="avatar">
+            ${avatar}
+        </div>
+
+
+        <div class="bubble">
+
+            <div class="name">
+
+                ${
+                    role === "user"
+                        ? "YOU"
+                        : "MEAL AGENT"
+                }
+
+            </div>
+
+
+            <div class="message-text">
+
+                ${formatText(text)}
+
+            </div>
+
+
+            <div class="message-time">
+
+                ${timestamp}
+
+            </div>
+
+        </div>
+
+    `;
+
+
+    chatMessages.appendChild(
+        element
+    );
+
+
+    // Smooth scroll respecting reduced motion preference
+    const shouldSmoothScroll = !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    requestAnimationFrame(
+        () => {
+
+            chatMessages.scrollTo({
+                top:
+                    chatMessages.scrollHeight,
+
+                behavior:
+                    shouldSmoothScroll ? "smooth" : "auto"
+            });
+
+        }
+    );
+
+}
+
+
+/* ============================================================
+   TYPING INDICATOR
+============================================================ */
+
+function showTyping() {
+
+    const element =
+        document.createElement(
+            "div"
+        );
+
+
+    element.id =
+        "typingMessage";
+
+
+    element.className =
+        "message agent-message";
+
+
+    element.innerHTML = `
+
+        <div class="avatar">
+            AI
+        </div>
+
+
+        <div class="bubble">
+
+            <div class="name">
+                MEAL AGENT
+            </div>
+
+
+            <div class="message-text">
+                Analyzing your request...
+            </div>
+
+        </div>
+
+    `;
+
+
+    chatMessages.appendChild(
+        element
+    );
+
+
+    chatMessages.scrollTop =
+        chatMessages.scrollHeight;
+
+}
+
+
+function hideTyping() {
+
+    const element =
+        document.getElementById(
+            "typingMessage"
+        );
+
+
+    if (element) {
+
+        element.remove();
+
+    }
+
+}
+
+
+/* ============================================================
+   DASHBOARD STATE
+============================================================ */
+
+function updateState(
+    state
+) {
+
+    if (!state) {
+
+        return;
+
+    }
+
+
+    const budget =
+        state.budget !== null &&
+        state.budget !== undefined
+            ? Number(state.budget)
+            : null;
+
+
+    const consumed =
+        Number(
+            state.consumed || 0
+        );
+
+
+    const remaining =
+        state.remaining !== null &&
+        state.remaining !== undefined
+            ? Number(state.remaining)
+            : null;
+
+
+    /* ---------------------------------
+       Budget
+    ---------------------------------- */
+
+    budgetValue.textContent =
+        budget !== null &&
+        Number.isFinite(budget)
+            ? Math.round(budget)
+            : "—";
+
+
+    /* ---------------------------------
+       Consumed
+    ---------------------------------- */
+
+    consumedValue.textContent =
+        Math.round(consumed);
+
+
+    /* ---------------------------------
+       Remaining
+    ---------------------------------- */
+
+    remainingValue.textContent =
+        remaining !== null &&
+        Number.isFinite(remaining)
+            ? Math.round(remaining)
+            : "—";
+
+
+    /* ---------------------------------
+       Progress
+    ---------------------------------- */
+
+    if (
+        budget !== null &&
+        budget > 0
+    ) {
+
+        const percentage =
+            Math.min(
+                100,
+                Math.max(
+                    0,
+                    (
+                        consumed /
+                        budget
+                    ) *
+                    100
+                )
+            );
+
+
+        progressBar.style.width =
+            `${percentage}%`;
+
+    } else {
+
+        progressBar.style.width =
+            "0%";
+
+    }
+
+
+    /* ---------------------------------
+       Meals
+    ---------------------------------- */
+
+    renderMeals(
+        state.meals || []
+    );
+
+}
+
+
+/* ============================================================
+   RENDER MEALS
+============================================================ */
+
+function renderMeals(
+    meals
+) {
+
+    mealCount.textContent =
+        `${meals.length} ${
+            meals.length === 1
+                ? "ITEM"
+                : "ITEMS"
+        }`;
+
+
+    if (!meals.length) {
+
+        mealList.innerHTML = `
+
+            <div class="empty-state">
+
+                No meals recorded yet.
+
+            </div>
+
+        `;
+
+        return;
+
+    }
+
+
+    mealList.innerHTML =
+        meals
+            .map(
+                (
+                    meal,
+                    index
+                ) => {
+
+                    const firstLetter = meal.food ? meal.food[0].toUpperCase() : '?';
+
+                    return `
+
+                        <div class="meal-item">
+
+                            <div class="meal-icon">
+                                ${firstLetter}
+                            </div>
+
+
+                            <div class="meal-info">
+
+                                <div class="meal-name">
+
+                                    ${escapeHtml(
+                                        meal.food
+                                    )}
+
+                                    ${
+                                        meal.estimated
+                                            ? `
+                                                <span class="estimated">
+                                                    est.
+                                                </span>
+                                              `
+                                            : ""
+                                    }
+
+                                </div>
+
+
+                                <div class="meal-calories">
+
+                                    ${meal.calories}
+                                    kcal
+
+                                </div>
+
+                            </div>
+
+
+                            <div class="meal-time">
+
+                                TODAY
+
+                            </div>
+
+                        </div>
+
+                    `;
+
+                }
+            )
+            .join("");
+
+}
+
+
+/* ============================================================
+   TRACE LABEL
+============================================================ */
+
+function getTraceLabel(
+    item
+) {
+
+    const labels = {
+
+        "read_memory_context":
+            "Memory loaded",
+
+        "agent_iteration":
+            "Agent thinking",
+
+        "tool_call":
+            "Tool called",
+
+        "tool_result":
+            "Tool result received",
+
+        "tool_arguments_error":
+            "Tool argument error",
+
+        "scope_check":
+            "Scope checked",
+
+        "llm_error":
+            "AI connection error",
+
+        "final_answer":
+            "Answer ready"
+
+    };
+
+
+    return (
+        labels[item.step]
+        ||
+        item.step
+        ||
+        "Agent activity"
+    );
+
+}
+
+
+/* ============================================================
+   TRACE DETAIL
+============================================================ */
+
+function getTraceDetail(
+    item
+) {
+
+    let parts = [];
+
+
+    if (item.tool) {
+
+        parts.push(
+            item.tool
+        );
+
+    }
+
+
+    if (item.arguments) {
+
+        parts.push(
+            JSON.stringify(
+                item.arguments
+            )
+        );
+
+    }
+
+
+    if (item.result) {
+
+        if (
+            typeof item.result ===
+            "string"
+        ) {
+
+            parts.push(
+                item.result
+            );
+
+        } else {
+
+            parts.push(
+                JSON.stringify(
+                    item.result
+                )
+            );
+
+        }
+
+    }
+
+
+    return parts.join(
+        " • "
+    );
+
+}
+
+
+/* ============================================================
+   RENDER TRACE
+============================================================ */
+
+function renderTrace(
+    trace
+) {
+
+    if (
+        !trace ||
+        !trace.length
+    ) {
+
+        return;
+
+    }
+
+
+    traceList.innerHTML =
+        "";
+
+
+    trace
+        .slice(-10)
+        .forEach(
+            item => {
+
+                const element =
+                    document.createElement(
+                        "div"
+                    );
+
+
+                element.className =
+                    "trace-item";
+
+
+                const title =
+                    getTraceLabel(
+                        item
+                    );
+
+
+                const detail =
+                    getTraceDetail(
+                        item
+                    );
+
+
+                element.innerHTML = `
+
+                    <div class="trace-title">
+
+                        ${escapeHtml(
+                            title
+                        )}
+
+                    </div>
+
+
+                    ${
+                        detail
+                            ? `
+                                <div class="trace-detail">
+
+                                    ${escapeHtml(
+                                        detail
+                                    )}
+
+                                </div>
+                              `
+                            : ""
+                    }
+
+                `;
+
+
+                traceList.appendChild(
+                    element
+                );
+
+            }
+        );
+
+
+    traceList.scrollTop =
+        traceList.scrollHeight;
+
+}
+
+
+/* ============================================================
+   SEND MESSAGE
+============================================================ */
+
+async function sendMessage(
+    message
+) {
+
+    const clean =
+        message.trim();
+
+
+    if (!clean) {
+
+        return;
+
+    }
+
+
+    /* ---------------------------------
+       Add user message
+    ---------------------------------- */
+
+    addMessage(
+        "user",
+        clean
+    );
+
+
+    /* ---------------------------------
+       Clear input
+    ---------------------------------- */
+
+    chatInput.value =
+        "";
+
+
+    sendButton.disabled =
+        true;
+
+
+    /* ---------------------------------
+       Show typing
+    ---------------------------------- */
+
+    showTyping();
+
+
+    try {
+
+        const response =
+            await fetch(
+                "/api/chat",
+                {
+                    method:
+                        "POST",
+
+                    headers:
+                        {
+                            "Content-Type":
+                                "application/json"
+                        },
+
+                    body:
+                        JSON.stringify(
+                            {
+                                message:
+                                    clean,
+
+                                session_id:
+                                    sessionId
+                            }
+                        )
+                }
+            );
+
+
+        if (!response.ok) {
+
+            const errorText =
+                await response.text();
+
+
+            throw new Error(
+                `HTTP ${response.status}: ${errorText}`
+            );
+
+        }
+
+
+        const data =
+            await response.json();
+
+
+        /* ---------------------------------
+           Remove typing
+        ---------------------------------- */
+
+        hideTyping();
+
+
+        /* ---------------------------------
+           Add AI response
+        ---------------------------------- */
+
+        addMessage(
+            "agent",
+            data.reply
+                ||
+                "I couldn't generate a response."
+        );
+
+
+        /* ---------------------------------
+           Update dashboard
+        ---------------------------------- */
+
+        updateState(
+            data.state
+        );
+
+
+        /* ---------------------------------
+           Update trace
+        ---------------------------------- */
+
+        renderTrace(
+            data.trace
+        );
+
+
+    } catch (error) {
+
+        hideTyping();
+
+
+        console.error(
+            "CHAT ERROR:",
+            error
+        );
+
+
+        addMessage(
+            "agent",
+            "I couldn't connect to the Meal Agent. " +
+            error.message
+        );
+
+
+    } finally {
+
+        sendButton.disabled =
+            false;
+
+        chatInput.focus();
+
+    }
+
+}
+
+
+/* ============================================================
+   RESET SESSION
+================================================================ */
+
+async function resetSession() {
+    if (!confirm("Are you sure you want to reset your session? This will clear all meals and settings.")) {
+        return;
+    }
+
+    try {
+        const response = await fetch('/api/chat', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                message: "Reset my session",
+                session_id: sessionId
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${await response.text()}`);
+        }
+
+        const data = await response.json();
+        updateState(data.state);
+        // Clear chat messages except welcome
+        chatMessages.innerHTML = `
+            <div class="welcome-message">
+                <div class="welcome-icon">🤖</div>
+                <div class="welcome-content">
+                    <span class="welcome-label">SESSION RESET</span>
+                    <h3>Hello. I'm ready.</h3>
+                    <p>Tell me your calorie budget, log what you ate, or ask whether a food fits your remaining calories.</p>
+                </div>
+            </div>
+        `;
+    } catch (error) {
+        console.error('RESET ERROR:', error);
+        addMessage('agent', 'I couldn\'t reset the session. ' + error.message);
+    }
+}
+
+
+/* ============================================================
+   CHAT FORM
+================================================================ */
+
+chatForm.addEventListener(
+    "submit",
+    event => {
+
+        event.preventDefault();
+
+        sendMessage(
+            chatInput.value
+        );
+
+    }
+);
+
+
+/* ============================================================
+   QUICK ACTION BUTTONS
+================================================================ */
+
+document
+    .querySelectorAll(
+        ".quick-btn"
+    )
+    .forEach(
+        button => {
+
+            button.addEventListener(
+                "click",
+                () => {
+
+                    sendMessage(
+                        button.dataset.message
+                    );
+
+                }
+            );
+
+        }
+    );
+
+
+/* ============================================================
+   MANUAL MEAL
+================================================================ */
+
+if (manualMealButton) {
+
+    manualMealButton.addEventListener(
+        "click",
+        () => {
+
+            chatInput.value =
+                "I ate ";
+
+
+            chatInput.focus();
+
+        }
+    );
+
+}
+
+
+/* ============================================================
+   RESET BUTTON
+================================================================ */
+
+if (resetButton) {
+    resetButton.addEventListener("click", resetSession);
+}
+
+
+/* ============================================================
+   LOAD EXISTING STATE
+================================================================ */
+
+async function loadState() {
+
+    try {
+
+        const response =
+            await fetch(
+                `/api/state?session_id=${encodeURIComponent(
+                    sessionId
+                )}`
+            );
+
+
+        if (!response.ok) {
+
+            return;
+
+        }
+
+
+        const state =
+            await response.json();
+
+
+        updateState(
+            state
+        );
+
+
+    } catch (error) {
+
+        console.error(
+            "STATE ERROR:",
+            error
+        );
+
+    }
+
+}
+
+
+/* ============================================================
+   STARTUP
+================================================================ */
+
+loadState();
+
+chatInput.focus();
